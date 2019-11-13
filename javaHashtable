@@ -1,0 +1,322 @@
+// A generic hashtable implemtation in Java. Implemented with an array of linked lists.
+// An iterator is used to traverse the hashtable which uses a shell sort method.
+package data_structures;
+
+import java.util.NoSuchElementException;
+import java.util.ConcurrentModificationException;
+import java.util.Iterator;
+
+public class Hashtable<K extends Comparable<K>,V> implements DictionaryADT<K,V> {
+	private int currentSize;
+	private int maxSize;
+	private int tableSize;
+	private int modCount;
+	private LinkedList<DictionaryNode<K,V>> [] list;
+	
+	public Hashtable(int max) {
+		currentSize = 0;
+		maxSize = max;
+		tableSize = (int) (maxSize * 1.3f);
+		modCount = 0;
+		list = new LinkedList[tableSize];    // UnorderedLinkedList[tableSize];
+		for(int i=0; i<tableSize; i++) 
+			list[i] = new LinkedList<DictionaryNode<K,V>>();
+	}
+	
+	// Dictionary Node Wrapper Class----------------------------------------------
+	private class DictionaryNode<K extends Comparable<K>,V> implements Comparable<DictionaryNode<K,V>>{
+		K key;
+		V value;
+		
+		public DictionaryNode(K k, V v) {
+			key = k;
+			value = v;
+		}
+		
+		public int compareTo(DictionaryNode<K,V> node) {
+			return key.compareTo(node.key);
+		}
+		
+	} //End DictionaryNode Class--------------------------------------------------
+	
+	private class LinkedList<E extends Comparable<E>> implements Iterable<E> {
+		//variable members
+		private int modCounter;
+		private int listSize;
+		private Node<E> head;
+		
+		//constructor
+		public LinkedList() {
+			modCounter = 0;
+			listSize = 0;
+			head = null;
+		}
+		
+		private class Node<T>{
+			T data;
+			Node<T> next;
+			
+			public Node(T d) {
+				data = d;
+				next = null;
+			}
+		}
+		
+		public boolean addFirst(E obj){
+			if(contains(obj))
+				return false;
+			Node<E> newNode = new Node<E>(obj);
+			if(head == null)
+				head = newNode;
+			else {
+				newNode.next = head;
+				head = newNode;
+			}
+			listSize++;
+			modCounter++;
+			return true;
+		}
+		
+		public boolean delete(E obj) {
+			//use contains() instead?
+			if(isEmpty())
+				return false;
+			Node<E> previous = null;
+			Node<E> current = head;
+			while(current != null && current.data.compareTo(obj) != 0) {
+				previous = current;
+				current = current.next;
+			}
+			if(previous == null) 	// first node check
+				head = head.next;
+			else if(current == null) // last node check 
+				previous.next = null;
+			else
+				previous = current.next;
+			listSize--;
+			modCounter++;
+			return true;
+		}
+		
+		public boolean contains(E obj) {
+	    	Node<E> temp = head; 
+	    	while(temp != null) {
+	    		if(obj.compareTo(temp.data) == 0)
+	    			return true;
+	    		temp = temp.next;
+	    	}
+	    	return false;
+	    }
+		
+		public E get(E obj) {
+	    	Node<E> temp = head; 
+	    	while(temp != null) {
+	    		if(obj.compareTo(temp.data) == 0)
+	    			return temp.data;
+	    		temp = temp.next;
+	    	}
+	    	return null;
+	    }
+	
+		public boolean isEmpty() { return listSize == 0; }
+		
+		public void clear() {
+			listSize = 0;
+			head = null;
+		}
+		
+		public Iterator<E> iterator(){
+	    	return new IteratorHelper();
+	    }
+	   
+	    class IteratorHelper implements Iterator<E>{
+	  		Node<E> iterPtr;
+	  		long modCheck;
+	  		public IteratorHelper() {
+	  			iterPtr = head;
+	  			modCheck = modCounter;
+	  		}
+	  		
+	  		public boolean hasNext() {
+	  			if(modCheck != modCounter)
+	  				throw new ConcurrentModificationException();
+	  			return (iterPtr != null);
+	  		}
+	  		
+	  		public E next() {
+	  			if(!hasNext())
+	  				throw new NoSuchElementException();
+	  			E temp = iterPtr.data;
+	  			iterPtr = iterPtr.next;
+	  			return temp;
+	  		}
+	  		
+	  		public void remove() {
+	  	    	throw new UnsupportedOperationException();
+	  	    	}
+	    }
+	}
+	
+	// Returns true if the dictionary has an object identified by
+	// key in it, otherwise false.
+	public boolean contains(K key) {
+		if(list[getIndex(key)].contains(new DictionaryNode<K,V>(key, null)))
+			return true;
+		return false;
+	}
+
+	// Adds the given key/value pair to the dictionary.  Returns 
+	// false if the dictionary is full, or if the key is a duplicate.
+	// Returns true if addition succeeded.
+	public boolean add(K key, V value) {
+		if(isFull() || contains(key))
+			return false;
+		if(list[getIndex(key)].addFirst(new DictionaryNode<K,V>(key, value))) {
+			currentSize++;
+			modCount++;
+			return true;
+		}
+		return false;
+	}
+
+	// Deletes the key/value pair identified by the key parameter.
+	// Returns true if the key/value pair was found and removed,
+	// otherwise false.
+	public boolean delete(K key) {
+		if(list[getIndex(key)].delete(new DictionaryNode<K,V>(key, null))) {
+			currentSize--;
+			modCount++;
+			return true;
+		}
+		return false;
+	}
+
+	// Returns the value associated with the parameter key.  Returns
+	// null if the key is not found or the dictionary is empty.
+	public V getValue(K key) {
+		if(!contains(key))
+			return null;
+		DictionaryNode<K,V> temp  = list[getIndex(key)].get(new DictionaryNode<K,V>(key,null));
+		if(temp == null)
+			return null;
+		return temp.value;
+	}
+
+	// Returns the key associated with the parameter value.  Returns
+	// null if the value is not found in the dictionary.  If more 
+	// than one key exists that matches the given value, returns the
+	// first one found. 
+	public K getKey(V value) {
+		DictionaryNode<K,V> temp  = new DictionaryNode<K,V>(null, value);
+		for(int i = 0; i<tableSize;i++)
+			for(DictionaryNode<K,V> n : list[i])
+				if(((Comparable<V>)temp.value).compareTo(n.value) == 0)
+					return n.key;
+		return null;
+	}
+	
+	// Returns the index associated with the hashCode from the key.
+	private int getIndex(K key) {
+		return (key.hashCode()&0x7FFFFFFF) % tableSize;
+	}
+
+	// Returns the number of key/value pairs currently stored 
+	// in the dictionary
+	public int size() { return currentSize; }
+
+	// Returns true if the dictionary is at max capacity
+	public boolean isFull() { return currentSize == maxSize; }
+
+	// Returns true if the dictionary is empty
+	public boolean isEmpty() { return currentSize == 0; }
+
+	// Returns the Dictionary object to an empty state.
+	public void clear() { 
+		currentSize = 0;
+		for(int i = 0; i<tableSize;i++)
+			list[i].clear();
+		}
+
+	// Returns an Iterator of the keys in the dictionary, in ascending
+	// sorted order.  The iterator must be fail-fast.
+	public Iterator<K> keys(){
+		return new KeyIteratorHelper<K>();
+	}
+
+	// Returns an Iterator of the values in the dictionary.  The
+	// order of the values must match the order of the keys. 
+	// The iterator must be fail-fast. 
+	public Iterator<V> values(){
+		return new ValueIteratorHelper<V>();
+	}
+	
+	//////////Iterator Helper///////////////////////////////////////////////////////////
+	private abstract class IteratorHelper<E> implements Iterator<E>{
+		protected DictionaryNode<K,V> [] nodes;
+		protected int index;
+		protected long modCheck;
+		
+		public IteratorHelper() {
+			nodes = new DictionaryNode[currentSize];
+			index = 0;
+			int j = 0;
+			modCheck = modCount;
+			for(int i = 0; i<tableSize;i++)
+				for(DictionaryNode<K,V> n : list[i])
+					nodes[j++] = n;
+			sort((DictionaryNode<K,V>[]) nodes);
+		}
+		
+		public boolean hasNext() {
+			if(modCheck != modCount)
+				throw new ConcurrentModificationException();
+			return index != currentSize;
+		}
+		
+		public abstract E next();
+		
+		public void remove() {
+			throw new UnsupportedOperationException();
+		}
+	}
+	
+	private class KeyIteratorHelper<K> extends IteratorHelper<K>{
+		public KeyIteratorHelper() {
+			super();
+		}
+		
+		public K next() {
+			return (K) nodes[index++].key;
+		}
+	}
+
+	private class ValueIteratorHelper<V> extends IteratorHelper<V>{
+		public ValueIteratorHelper() {
+			super();
+		}
+		
+		public V next() {
+			return (V) nodes[index++].value;
+		}
+	}///////////////////////////////////////////////////////////////////////////////////
+	
+	// Shell Sort Method
+	private void sort(DictionaryNode<K,V> [] nodes) {
+		DictionaryNode<K,V> temp;
+		int in, out;
+		int h =1;
+		while(h <= currentSize/3)
+			h = h*3 + 1;
+		while(h > 0) {
+			for(out = h; out < currentSize; out++) {
+				temp = nodes[out];
+				in = out;
+				while(in > h-1 && nodes[in-h].key.compareTo(temp.key) >= 0) {
+					nodes[in] = nodes[in-h];
+					in -= h;
+				}
+				nodes[in] = temp;
+			}
+			h = (h-1)/3;
+		}
+	}	
